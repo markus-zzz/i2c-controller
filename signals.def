@@ -1,0 +1,26 @@
+DEF_SIGNAL(axi_aclk, 0)
+DEF_SIGNAL(axi_aresetn, 0)
+
+DEF_SIGNAL(axi_awaddr, 1)
+DEF_SIGNAL(axi_awprot, 1)
+DEF_SIGNAL(axi_awvalid, 1)
+DEF_SIGNAL(axi_awready, 0)
+
+DEF_SIGNAL(axi_wdata, 1)
+DEF_SIGNAL(axi_wstrb, 1)
+DEF_SIGNAL(axi_wvalid, 1)
+DEF_SIGNAL(axi_wready, 0)
+
+DEF_SIGNAL(axi_bresp, 0)
+DEF_SIGNAL(axi_bvalid, 0)
+DEF_SIGNAL(axi_bready, 1)
+
+DEF_SIGNAL(axi_araddr, 1)
+DEF_SIGNAL(axi_arprot, 1)
+DEF_SIGNAL(axi_arvalid, 1)
+DEF_SIGNAL(axi_arready, 0)
+
+DEF_SIGNAL(axi_rdata, 0)
+DEF_SIGNAL(axi_rresp, 0)
+DEF_SIGNAL(axi_rvalid, 0)
+DEF_SIGNAL(axi_rready, 1)

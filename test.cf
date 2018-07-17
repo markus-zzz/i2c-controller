@@ -1,0 +1,8 @@
++define+SIMULATION
++libext+.v+.vlib
+i2c_testbench.v
+i2c_slave_model.v
+i2c_controller.v
+i2c_axi_slave.v
+i2c_axi_top.v
+
