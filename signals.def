@@ -24,3 +24,5 @@ DEF_SIGNAL(axi_rdata, 0)
 DEF_SIGNAL(axi_rresp, 0)
 DEF_SIGNAL(axi_rvalid, 0)
 DEF_SIGNAL(axi_rready, 1)
+
+DEF_SIGNAL(busy_bit, 0)

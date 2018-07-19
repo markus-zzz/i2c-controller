@@ -28,6 +28,8 @@ module tb #(
 	wire axi_rvalid;
 	reg axi_rready;
 
+	wire busy_bit;
+
 	wire i2c_scl;
 	wire i2c_sda_io;
 
@@ -56,6 +58,8 @@ module tb #(
 	  .S00_AXI_rresp(axi_rresp),
 	  .S00_AXI_rvalid(axi_rvalid),
 	  .S00_AXI_rready(axi_rready),
+
+	  .busy_bit_o(busy_bit),
 
 	  .I2C_SCL_O(i2c_scl),
 	  .I2C_SDA_IO(i2c_sda_io)

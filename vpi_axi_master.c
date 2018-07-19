@@ -62,10 +62,18 @@ do { \
 #undef DEF_SIGNAL
 }
 
-static int axi_master_socket;
+int clock_request()
+{
+	return axi_signals.busy_bit.value.integer;
+}
+
+static int axi_master_sync_socket;
+static int axi_master_async_socket;
 
 static enum {s_idle, s_w_0, s_w_1, s_w_2, s_r_0, s_r_1, s_r_2} state = s_idle;
 static struct axi_master_msg msg;
+
+static uint32_t irq_level, irq_level_prev = 0;
 
 int clk_cb(p_cb_data cb)
 {
@@ -73,12 +81,32 @@ int clk_cb(p_cb_data cb)
 
 	/* @posedge(axi_aclk) and inactive axi_aresetn */
 	if (axi_signals.axi_aresetn.value.integer && axi_signals.axi_aclk.value.integer) {
+
 		int res;
+
+		int recv_flags = 0;
+		if (clock_request()) {
+			recv_flags = MSG_DONTWAIT;
+		}
+
+		irq_level = axi_signals.busy_bit.value.integer ? 0 : 1;
+
+		if (irq_level != irq_level_prev) {
+			if (send(axi_master_async_socket, &irq_level, sizeof(irq_level), 0) != sizeof(irq_level)) {
+				perror("send");
+				exit(1);
+			}
+			irq_level_prev = irq_level;
+		}
 
 		switch (state) {
 			case s_idle:
-				if ((res = recv(axi_master_socket, &msg, sizeof(msg), 0)) != sizeof(msg)) {
-					if (0 == res) {
+				printf("about to recv() with recv_flags: %x\n", recv_flags);
+				if ((res = recv(axi_master_sync_socket, &msg, sizeof(msg), recv_flags)) != sizeof(msg)) {
+					if (res == -1 && (EAGAIN == errno || EWOULDBLOCK == errno)) {
+						return 0;
+					}
+					else if (0 == res) {
 						vpi_printf("socket closed.\n");
 						exit(0);
 					}
@@ -121,7 +149,7 @@ int clk_cb(p_cb_data cb)
 					axi_signals.axi_bready.value.integer = 0;
 
 					msg.code = MSG_CODE_WRITE_ACK;
-					if (send(axi_master_socket, &msg, sizeof(msg), 0) != sizeof(msg)) {
+					if (send(axi_master_sync_socket, &msg, sizeof(msg), 0) != sizeof(msg)) {
 						perror("send");
 						exit(1);
 					}
@@ -151,7 +179,7 @@ int clk_cb(p_cb_data cb)
 
 					msg.data = axi_signals.axi_rdata.value.integer;
 					msg.code = MSG_CODE_READ_ACK;
-					if (send(axi_master_socket, &msg, sizeof(msg), 0) != sizeof(msg)) {
+					if (send(axi_master_sync_socket, &msg, sizeof(msg), 0) != sizeof(msg)) {
 						perror("send");
 						exit(1);
 					}
@@ -168,31 +196,50 @@ int clk_cb(p_cb_data cb)
 
 void wait_for_axi_master_client(void)
 {
-	int listen_socket;
+	int sync_listen_socket;
+	int async_listen_socket;
 	unsigned t;
 	struct sockaddr_un local, remote;
 
-	if ((listen_socket = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-		perror("socket");
+	if ((sync_listen_socket = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+		perror("socket sync");
+		exit(1);
+	}
+	if ((async_listen_socket = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+		perror("socket async");
 		exit(1);
 	}
 
 	local.sun_family = AF_UNIX;
-	strcpy(local.sun_path, SOCK_PATH);
+	snprintf(local.sun_path, 104, "%s.%s", SOCK_PATH, "sync");
 	unlink(local.sun_path);
-	if (bind(listen_socket, (struct sockaddr *)&local, sizeof(local)) == -1) {
+	if (bind(sync_listen_socket, (struct sockaddr *)&local, sizeof(local)) == -1) {
+		perror("bind");
+		exit(1);
+	}
+	snprintf(local.sun_path, 104, "%s.%s", SOCK_PATH, "async");
+	unlink(local.sun_path);
+	if (bind(async_listen_socket, (struct sockaddr *)&local, sizeof(local)) == -1) {
 		perror("bind");
 		exit(1);
 	}
 
-	if (listen(listen_socket, 5) == -1) {
+	if (listen(sync_listen_socket, 5) == -1) {
+		perror("listen");
+		exit(1);
+	}
+	if (listen(async_listen_socket, 5) == -1) {
 		perror("listen");
 		exit(1);
 	}
 
 	printf("Waiting for a connection...\n");
 	t = sizeof(remote);
-	if ((axi_master_socket = accept(listen_socket, (struct sockaddr *)&remote, &t)) == -1) {
+	if ((axi_master_sync_socket = accept(sync_listen_socket, (struct sockaddr *)&remote, &t)) == -1) {
+		perror("accept");
+		exit(1);
+	}
+	if ((axi_master_async_socket = accept(async_listen_socket, (struct sockaddr *)&remote, &t)) == -1) {
 		perror("accept");
 		exit(1);
 	}

@@ -26,6 +26,8 @@ module i2c_axi_top #(
   output wire  S00_AXI_rvalid,
   input wire  S00_AXI_rready,
 
+  output wire busy_bit_o,
+
   /* I2C interface */
   output wire I2C_SCL_O,
   inout wire I2C_SDA_IO
@@ -91,5 +93,7 @@ module i2c_axi_top #(
 	  .I2C_SDA_OE(i2c_sda_oe),
 	  .I2C_SDA_I(I2C_SDA_IO)
 	);
+
+	assign busy_bit_o = i2c_status_reg[9];
 
 endmodule
