@@ -90,12 +90,9 @@ int clk_cb(p_cb_data cb)
 		}
 
 		irq_level = axi_signals.busy_bit.value.integer ? 0 : 1;
-
 		if (irq_level != irq_level_prev) {
-			if (send(axi_master_async_socket, &irq_level, sizeof(irq_level), 0) != sizeof(irq_level)) {
-				perror("send");
-				exit(1);
-			}
+			/* Dont block and dont care if it fails (e.g. nobody is recving) */
+			(void)send(axi_master_async_socket, &irq_level, sizeof(irq_level), MSG_DONTWAIT);
 			irq_level_prev = irq_level;
 		}
 

@@ -9,7 +9,8 @@
 #include <assert.h>
 #include "axi_master.h"
 
-static int axi_master_socket;
+static int axi_master_socket_sync;
+static int axi_master_socket_async;
 
 void axi_master_write(uint32_t address, uint32_t data)
 {
@@ -18,12 +19,12 @@ void axi_master_write(uint32_t address, uint32_t data)
 	msg.address = address;
 	msg.data = data;
 
-	if (send(axi_master_socket, &msg, sizeof(msg), 0) == -1) {
+	if (send(axi_master_socket_sync, &msg, sizeof(msg), 0) == -1) {
 		perror("send");
 		exit(1);
 	}
 
-	if (recv(axi_master_socket, &msg, sizeof(msg), 0) <= 0) {
+	if (recv(axi_master_socket_sync, &msg, sizeof(msg), 0) <= 0) {
 		perror("recv");
 		exit(1);
 	}
@@ -38,12 +39,12 @@ uint32_t axi_master_read(uint32_t address)
 	msg.address = address;
 	msg.data = 0;
 
-	if (send(axi_master_socket, &msg, sizeof(msg), 0) == -1) {
+	if (send(axi_master_socket_sync, &msg, sizeof(msg), 0) == -1) {
 		perror("send");
 		exit(1);
 	}
 
-	if (recv(axi_master_socket, &msg, sizeof(msg), 0) <= 0) {
+	if (recv(axi_master_socket_sync, &msg, sizeof(msg), 0) <= 0) {
 		perror("recv");
 		exit(1);
 	}
@@ -131,19 +132,28 @@ int main(void)
 {
     struct sockaddr_un remote;
 
-    if ((axi_master_socket = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+    if ((axi_master_socket_sync = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+        perror("socket");
+        exit(1);
+    }
+    if ((axi_master_socket_async = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         perror("socket");
         exit(1);
     }
 
     printf("Trying to connect...\n");
 
-    remote.sun_family = AF_UNIX;
-    strcpy(remote.sun_path, SOCK_PATH);
-    if (connect(axi_master_socket, (struct sockaddr *)&remote, sizeof(remote)) == -1) {
-        perror("connect");
-        exit(1);
-    }
+	remote.sun_family = AF_UNIX;
+	snprintf(remote.sun_path, 104, "%s.%s", SOCK_PATH, "sync");
+	if (connect(axi_master_socket_sync, (struct sockaddr *)&remote, sizeof(remote)) == -1) {
+		perror("connect sync");
+		exit(1);
+	}
+	snprintf(remote.sun_path, 104, "%s.%s", SOCK_PATH, "async");
+	if (connect(axi_master_socket_async, (struct sockaddr *)&remote, sizeof(remote)) == -1) {
+		perror("connect async");
+		exit(1);
+	}
 
     printf("Connected.\n");
 
@@ -185,7 +195,8 @@ int main(void)
 
 	/* end - test */
 
-    close(axi_master_socket);
+    close(axi_master_socket_sync);
+    close(axi_master_socket_async);
 
     return 0;
 }
