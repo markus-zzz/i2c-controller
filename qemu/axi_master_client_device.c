@@ -8,6 +8,8 @@
 
 #define SOCK_PATH "/tmp/axi_master_socket"
 
+#define D(x)
+
 struct axi_master_msg {
 	enum {MSG_CODE_WRITE_CMD = 1, MSG_CODE_WRITE_ACK = 2, MSG_CODE_READ_CMD = 3, MSG_CODE_READ_ACK = 4} code;
 	uint32_t address;
@@ -28,8 +30,8 @@ axi_master_client_device_read(void *opaque, hwaddr offset, unsigned size)
 {
 	AxiMasterClientDeviceState *s = (AxiMasterClientDeviceState *)opaque;
 
-	printf("axi_master_client_device_read offset=%llx size=%llx\n",
-	       (unsigned long long)offset, (unsigned long long)size);
+	D(printf("axi_master_client_device_read offset=%llx size=%llx\n",
+	         (unsigned long long)offset, (unsigned long long)size));
 
 	struct axi_master_msg msg;
 	msg.code = MSG_CODE_READ_CMD;
@@ -55,8 +57,8 @@ axi_master_client_device_write(void *opaque, hwaddr offset, uint64_t value, unsi
 {
 	AxiMasterClientDeviceState *s = (AxiMasterClientDeviceState *)opaque;
 
-	printf("axi_master_client_device_write offset=%llx value=%llx size=%llx\n",
-	       (unsigned long long)offset, (unsigned long long)value, (unsigned long long)size);
+	D(printf("axi_master_client_device_write offset=%llx value=%llx size=%llx\n",
+	         (unsigned long long)offset, (unsigned long long)value, (unsigned long long)size));
 
 	struct axi_master_msg msg;
 	msg.code = MSG_CODE_WRITE_CMD;
@@ -94,7 +96,7 @@ async_thread(void *opaque)
 			exit(1);
 		}
 
-		printf("Got IRQ level : %d\n", irq_level);
+		D(printf("Got IRQ level : %d\n", irq_level));
 		/* Need to acquire the 'Big QEMU Lock' before reporting IRQ to main thread */
 		qemu_mutex_lock_iothread();
 		qemu_set_irq(s->irq, irq_level);
@@ -125,7 +127,7 @@ axi_master_client_device_init(Object *obj)
 		exit(1);
 	}
 
-	printf("Trying to connect...\n");
+	printf(TYPE_AXI_MASTER_CLIENT_DEVICE ": Trying to connect...\n");
 
 	remote.sun_family = AF_UNIX;
 	snprintf(remote.sun_path, 104, "%s.%s", SOCK_PATH, "sync");
@@ -139,7 +141,7 @@ axi_master_client_device_init(Object *obj)
 		exit(1);
 	}
 
-	printf("Connected.\n");
+	printf(TYPE_AXI_MASTER_CLIENT_DEVICE ": Connected.\n");
 
     QemuThread thread;
 	qemu_thread_create(&thread, "async_thread", async_thread, s, QEMU_THREAD_DETACHED);
