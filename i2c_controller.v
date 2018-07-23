@@ -14,7 +14,9 @@ module i2c_controller #
 
 	input wire i2c_cmd_pulse_i,
 	input wire[10:0] i2c_ctrl_reg_i,
-	output wire[9:0] i2c_status_reg_o
+	output wire[9:0] i2c_status_reg_o,
+	input wire i2c_irq_ack_pulse_i,
+	output wire i2c_irq_o
 );
 
 	wire ctrl_we;
@@ -34,6 +36,8 @@ module i2c_controller #
 	reg[7:0] data_out;
 	reg[7:0] data_in;
 	reg ack_in;
+
+	reg i2c_irq;
 
 	assign ctrl_we    = i2c_ctrl_reg_i[10];
 	assign ctrl_start = i2c_ctrl_reg_i[9];
@@ -128,6 +132,23 @@ module i2c_controller #
 		end
 		else if (curr_state == S_DATA && scl_4x_clk_en && scl_phase == 2'b11) begin
 			data_cntr <= data_cntr + 1;
+		end
+	end
+
+	// IRQ generation
+	assign i2c_irq_o = i2c_irq;
+	always @(posedge clk) begin
+		if (rst) begin
+			i2c_irq <= 0;
+		end
+		else begin
+			if (scl_4x_clk_en && curr_state != S_IDLE && next_state == S_IDLE) begin
+				i2c_irq <= 1;
+			end
+			// Clearing has lower priority
+			else if (i2c_irq_ack_pulse_i) begin
+				i2c_irq <= 0;
+			end
 		end
 	end
 

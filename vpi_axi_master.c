@@ -89,7 +89,7 @@ int clk_cb(p_cb_data cb)
 			recv_flags = MSG_DONTWAIT;
 		}
 
-		irq_level = axi_signals.busy_bit.value.integer ? 0 : 1;
+		irq_level = axi_signals.i2c_irq.value.integer ? 1 : 0;
 		if (irq_level != irq_level_prev) {
 			/* Dont block and dont care if it fails (e.g. nobody is recving) */
 			(void)send(axi_master_async_socket, &irq_level, sizeof(irq_level), MSG_DONTWAIT);

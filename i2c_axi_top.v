@@ -27,6 +27,7 @@ module i2c_axi_top #(
   input wire  S00_AXI_rready,
 
   output wire busy_bit_o,
+  output wire i2c_irq_o,
 
   /* I2C interface */
   output wire I2C_SCL_O,
@@ -39,6 +40,7 @@ module i2c_axi_top #(
 	assign rst = ~S00_AXI_aresetn;
 
 	wire i2c_cmd_pulse;
+	wire i2c_irq_ack_pulse;
 	wire[10:0] i2c_ctrl_reg;
 	wire[9:0] i2c_status_reg;
 
@@ -73,6 +75,7 @@ module i2c_axi_top #(
 	  .S_AXI_RVALID(S00_AXI_rvalid),
 	  .S_AXI_RREADY(S00_AXI_rready),
 
+	  .i2c_irq_ack_pulse_o(i2c_irq_ack_pulse),
 	  .i2c_cmd_pulse_o(i2c_cmd_pulse),
 	  .i2c_ctrl_reg_o(i2c_ctrl_reg),
 	  .i2c_status_reg_i(i2c_status_reg)
@@ -87,6 +90,9 @@ module i2c_axi_top #(
 	  .i2c_cmd_pulse_i(i2c_cmd_pulse),
 	  .i2c_ctrl_reg_i(i2c_ctrl_reg),
 	  .i2c_status_reg_o(i2c_status_reg),
+	  .i2c_irq_ack_pulse_i(i2c_irq_ack_pulse),
+	  .i2c_irq_o(i2c_irq_o),
+
 
 	  .I2C_SCL(I2C_SCL_O),
 	  .I2C_SDA_O(i2c_sda_o),

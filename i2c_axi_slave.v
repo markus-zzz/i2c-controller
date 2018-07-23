@@ -27,6 +27,7 @@ module i2c_axi_slave #
 	input wire  S_AXI_RREADY,
 
 	output wire i2c_cmd_pulse_o,
+	output wire i2c_irq_ack_pulse_o,
 	output wire[10:0] i2c_ctrl_reg_o,
 	input wire[9:0] i2c_status_reg_i
 );
@@ -51,6 +52,7 @@ module i2c_axi_slave #
 	wire slv_reg_wren;
 	reg [C_S_AXI_DATA_WIDTH-1:0] reg_data_out;
 	reg i2c_cmd_pulse;
+	reg i2c_irq_ack_pulse;
 
 	assign i2c_ctrl_reg_o = slv_reg_i2c_ctrl;
 
@@ -136,6 +138,17 @@ module i2c_axi_slave #
 		end
 		else begin
 			i2c_cmd_pulse <= slv_reg_wren && axi_awaddr[12:0] == 13'h100c;
+		end
+	end
+
+	assign i2c_irq_ack_pulse_o = i2c_irq_ack_pulse;
+
+	always @( posedge S_AXI_ACLK ) begin
+		if ( S_AXI_ARESETN == 1'b0 ) begin
+			i2c_irq_ack_pulse <= 0;
+		end
+		else begin
+			i2c_irq_ack_pulse <= slv_reg_wren && axi_awaddr[12:0] == 13'h1020;
 		end
 	end
 

@@ -26,3 +26,4 @@ DEF_SIGNAL(axi_rvalid, 0)
 DEF_SIGNAL(axi_rready, 1)
 
 DEF_SIGNAL(busy_bit, 0)
+DEF_SIGNAL(i2c_irq, 0)
