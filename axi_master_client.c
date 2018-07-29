@@ -52,80 +52,67 @@ uint32_t axi_master_read(uint32_t address)
 	assert(msg.code == MSG_CODE_READ_ACK);
 	return msg.data;
 }
+/*
+				13'h800: reg_data_out <= {tx_rp_i, 2'b00};
+				13'h804: reg_data_out <= {tx_wp, 2'b00};
+				13'h808: reg_data_out <= {rx_rp, 2'b00};
+				13'h80c: reg_data_out <= {rx_wp_i, 2'b00};
+ */
 
-const uint32_t i2c_ctrl_addr = 0x0000100c;
-const uint32_t i2c_status_addr = 0x00001010;
+static const uint32_t tx_base_addr = 0x000;
+static const uint32_t rx_base_addr = 0x400;
 
-const uint32_t i2c_ctrl_we_bit = 1 << 10;
-const uint32_t i2c_ctrl_start_bit = 1 << 9;
-const uint32_t i2c_ctrl_stop_bit = 1 << 8;
+static const uint32_t tx_rp_addr = 0x800;
+static const uint32_t tx_wp_addr = 0x804;
+static const uint32_t rx_rp_addr = 0x808;
+static const uint32_t rx_wp_addr = 0x80c;
 
-const uint32_t i2c_status_busy_bit = 1 << 9;
-const uint32_t i2c_status_ack_bit = 1 << 8;
-
-void i2c_mem_write(uint8_t i2c_addr, uint8_t mem_addr, uint8_t mem_data)
+void put_msg(const char *msg)
 {
-	uint32_t status;
-	/* Make sure interface is not busy */
-	while (axi_master_read(i2c_status_addr) & i2c_status_busy_bit);
+	uint32_t buf[1024];
+	uint32_t msg_byte_len = strlen(msg);
+	uint32_t msg_word_len = (msg_byte_len >> 2) + (msg_byte_len & 0x3 ? 1 : 0);
+	strcpy((char*)buf, msg);
 
-	/* Address for write mode */
-	axi_master_write(i2c_ctrl_addr, i2c_ctrl_we_bit | i2c_ctrl_start_bit | i2c_addr << 1 | 0 << 0);
+	uint32_t tx_wp = axi_master_read(tx_wp_addr);
 
-	/* Wait until complete */
-	while ((status = axi_master_read(i2c_status_addr)) & i2c_status_busy_bit);
-	assert(status & i2c_status_ack_bit && "I2C address ACK");
+	axi_master_write(tx_base_addr + tx_wp, msg_byte_len);
+	for (int i = 0; i < msg_word_len; i++) {
+		axi_master_write(tx_base_addr + tx_wp + (1 + i) * 4, buf[i]);
+	}
 
-	/* Memory address */
-	axi_master_write(i2c_ctrl_addr, i2c_ctrl_we_bit | mem_addr);
-
-	/* Wait until complete */
-	while ((status = axi_master_read(i2c_status_addr)) & i2c_status_busy_bit);
-	assert(status & i2c_status_ack_bit && "MEM address ACK");
-
-	/* Memory data */
-	axi_master_write(i2c_ctrl_addr, i2c_ctrl_we_bit | i2c_ctrl_stop_bit | mem_data);
-
-	/* Wait until complete */
-	while ((status = axi_master_read(i2c_status_addr)) & i2c_status_busy_bit);
-	assert(status & i2c_status_ack_bit && "MEM write ACK");
+	/* Advance TX_WP */
+	axi_master_write(tx_wp_addr, tx_wp + (msg_word_len + 1) * 4);
 }
 
-uint8_t i2c_mem_read(uint8_t i2c_addr, uint8_t mem_addr)
+void get_msg()
 {
-	uint32_t status;
-	/* Make sure interface is not busy */
-	while (axi_master_read(i2c_status_addr) & i2c_status_busy_bit);
+	uint32_t buf[1024];
 
-	/* Address for write mode */
-	axi_master_write(i2c_ctrl_addr, i2c_ctrl_we_bit | i2c_ctrl_start_bit | i2c_addr << 1 | 0 << 0);
+	uint32_t rx_rp = axi_master_read(rx_rp_addr);
 
-	/* Wait until complete */
-	while ((status = axi_master_read(i2c_status_addr)) & i2c_status_busy_bit);
-	assert(status & i2c_status_ack_bit && "I2C (write) address ACK");
+	uint32_t msg_byte_len = axi_master_read(rx_base_addr + rx_rp);
+	uint32_t msg_word_len = (msg_byte_len >> 2) + (msg_byte_len & 0x3 ? 1 : 0);
 
-	/* Memory address */
-	axi_master_write(i2c_ctrl_addr, i2c_ctrl_we_bit | mem_addr);
+	for (int i = 0; i < msg_word_len; i++) {
+		buf[i] = axi_master_read(rx_base_addr + rx_rp + (1 + i) * 4);
+	}
 
-	/* Wait until complete */
-	while ((status = axi_master_read(i2c_status_addr)) & i2c_status_busy_bit);
-	assert(status & i2c_status_ack_bit && "MEM address ACK");
+	/* Advance RX_RP */
+	axi_master_write(rx_rp_addr, rx_rp + 1 + (msg_word_len) * 4);
 
-	/* Address for read mode */
-	axi_master_write(i2c_ctrl_addr, i2c_ctrl_we_bit | i2c_ctrl_start_bit | i2c_addr << 1 | 1 << 0);
+	char *msg = (char*)&buf[0];
+	msg[msg_byte_len] = '\0';
+	printf("\nmsg: len=%d '%s'\n", msg_byte_len, msg);
+}
 
-	/* Wait until complete */
-	while ((status = axi_master_read(i2c_status_addr)) & i2c_status_busy_bit);
-	assert(status & i2c_status_ack_bit && "I2C (read) address ACK");
-
-	/* Memory data */
-	axi_master_write(i2c_ctrl_addr, i2c_ctrl_stop_bit);
-
-	/* Wait until complete */
-	while ((status = axi_master_read(i2c_status_addr)) & i2c_status_busy_bit);
-	assert(status & i2c_status_ack_bit && "MEM read ACK");
-
-	return status & 0xff;
+void dump_rx()
+{
+	printf("\n\n\n");
+	for (int i = 0; i < 32; i++) {
+		uint32_t off = i * 4;
+		printf("%08x: %08x\n", rx_base_addr + off,  axi_master_read(rx_base_addr + off));
+	}
 }
 
 int main(void)
@@ -158,40 +145,33 @@ int main(void)
     printf("Connected.\n");
 
 	/* begin - test */
+	put_msg("Hello World1");
+	put_msg("Dummy you.");
+#if 0
+	put_msg("FooBar");
+#endif
 
-	/* Test a few AXI registers */
-	axi_master_write(0x00001000, 0xcafebabe);
-	axi_master_write(0x00001004, 0xdeadbeef);
-	axi_master_write(0x00001008, 0xf00baaaa);
+	dump_rx();
+	dump_rx();
+#if 0
+	return 0;
 
-	printf("data: %x\n", axi_master_read(0x00001004));
-	printf("data: %x\n", axi_master_read(0x00001000));
-	printf("data: %x\n", axi_master_read(0x00001008));
-
-	/* I2C slave model has address 7'b001_0000 */
-#define I2C_ADDR 0x10
-#define DATA_SIZE 16
-	uint8_t data[DATA_SIZE];
-
-	/* Generate reference data */
-	for (int i = 0; i < DATA_SIZE; i++) {
-		data[i] = rand();
+	/* Busy wait until tx_rp == tx_wp */
+	while (1) {
+		uint32_t tx_rp = axi_master_read(0x800);
+		uint32_t tx_wp = axi_master_read(0x804);
+		if (tx_rp == tx_wp) {
+			break;
+		}
+		printf(".");
 	}
+#endif
 
-	/* Write data to memory in forward order */
-	for (int i = 0; i < DATA_SIZE; i++) {
-		i2c_mem_write(I2C_ADDR, i, data[i]);
-	}
-
-	/* Read data from memory (and verify) in forward order */
-	for (int i = 0; i < DATA_SIZE; i++) {
-		assert(i2c_mem_read(I2C_ADDR, i) == data[i]);
-	}
-
-	/* Read data from memory (and verify) in reverse order */
-	for (int i = 0; i < DATA_SIZE; i++) {
-		assert(i2c_mem_read(I2C_ADDR, DATA_SIZE - 1 - i) == data[DATA_SIZE - 1 - i]);
-	}
+	get_msg();
+#if 0
+	get_msg();
+	get_msg();
+#endif
 
 	/* end - test */
 

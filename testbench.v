@@ -36,7 +36,7 @@ module tb #(
 	assign axi_aclk = clk;
 	assign axi_aresetn = ~rst;
 
-	i2c_axi_top dut(
+	modem_axi_top dut(
 	  .S00_AXI_aclk(axi_aclk),
 	  .S00_AXI_aresetn(axi_aresetn),
 	  .S00_AXI_awaddr(axi_awaddr),

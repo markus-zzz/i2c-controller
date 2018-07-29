@@ -98,7 +98,9 @@ int clk_cb(p_cb_data cb)
 
 		switch (state) {
 			case s_idle:
+#if 0
 				printf("about to recv() with recv_flags: %x\n", recv_flags);
+#endif
 				if ((res = recv(axi_master_sync_socket, &msg, sizeof(msg), recv_flags)) != sizeof(msg)) {
 					if (res == -1 && (EAGAIN == errno || EWOULDBLOCK == errno)) {
 						return 0;

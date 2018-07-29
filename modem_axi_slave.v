@@ -1,4 +1,4 @@
-module i2c_axi_slave #
+module modem_axi_slave #
 (
 	parameter integer C_S_AXI_DATA_WIDTH = 32,
 	parameter integer C_S_AXI_ADDR_WIDTH = 13
@@ -26,6 +26,19 @@ module i2c_axi_slave #
 	output wire  S_AXI_RVALID,
 	input wire  S_AXI_RREADY,
 
+	input wire [7:0] rx_wp_i,
+	input wire [7:0] tx_rp_i,
+
+	output wire [7:0] rx_rp_o,
+	output wire [7:0] tx_wp_o,
+
+	output wire [31:0] tx_wdata_o,
+	output wire [7:0] tx_waddr_o,
+	output wire tx_wen_o,
+
+	input wire [31:0] rx_rdata_i,
+	output wire [7:0] rx_raddr_o,
+
 	output wire i2c_cmd_pulse_o,
 	output wire[10:0] i2c_ctrl_reg_o,
 	input wire[9:0] i2c_status_reg_i
@@ -41,16 +54,21 @@ module i2c_axi_slave #
 	reg [C_S_AXI_DATA_WIDTH-1 : 0] axi_rdata;
 	reg [1 : 0] axi_rresp;
 	reg axi_rvalid;
+	reg axi_rvalid_;
 
-	reg [C_S_AXI_DATA_WIDTH-1 : 0] slv_reg_a;
-	reg [C_S_AXI_DATA_WIDTH-1 : 0] slv_reg_b;
-	reg [C_S_AXI_DATA_WIDTH-1 : 0] slv_reg_c;
 	reg [10:0] slv_reg_i2c_ctrl;
 
 	wire slv_reg_rden;
 	wire slv_reg_wren;
 	reg [C_S_AXI_DATA_WIDTH-1:0] reg_data_out;
 	reg i2c_cmd_pulse;
+
+
+	reg [7:0] rx_rp;
+	reg [7:0] tx_wp;
+
+	assign rx_rp_o = rx_rp;
+	assign tx_wp_o = tx_wp;
 
 	assign i2c_ctrl_reg_o = slv_reg_i2c_ctrl;
 
@@ -61,7 +79,11 @@ module i2c_axi_slave #
 	assign S_AXI_ARREADY = axi_arready;
 	assign S_AXI_RDATA = axi_rdata;
 	assign S_AXI_RRESP = axi_rresp;
-	assign S_AXI_RVALID = axi_rvalid;
+	assign S_AXI_RVALID = axi_rvalid_;
+
+	always @( posedge S_AXI_ACLK ) begin
+		axi_rvalid_ <= axi_rvalid;
+	end
 
 	always @( posedge S_AXI_ACLK ) begin
 		if ( S_AXI_ARESETN == 1'b0 ) begin
@@ -108,34 +130,35 @@ module i2c_axi_slave #
 
 	always @( posedge S_AXI_ACLK) begin
 		if (S_AXI_ARESETN == 1'b0) begin
-			slv_reg_a <= 0;
-			slv_reg_b <= 0;
-			slv_reg_c <= 0;
+			tx_wp <= 0;
+			rx_rp <= 0;
 		end
 		else begin
-			if (slv_reg_wren && axi_awaddr[12:0] == 13'h1000) begin
-				slv_reg_a <= S_AXI_WDATA;
+			if (slv_reg_wren && axi_awaddr[12:0] == 13'h804) begin
+				tx_wp <= S_AXI_WDATA[9:2];
 			end
-			if (slv_reg_wren && axi_awaddr[12:0] == 13'h1004) begin
-				slv_reg_b <= S_AXI_WDATA;
-			end
-			if (slv_reg_wren && axi_awaddr[12:0] == 13'h1008) begin
-				slv_reg_c <= S_AXI_WDATA;
-			end
-			if (slv_reg_wren && axi_awaddr[12:0] == 13'h100c) begin
-				slv_reg_i2c_ctrl <= S_AXI_WDATA[10:0];
+			if (slv_reg_wren && axi_awaddr[12:0] == 13'h808) begin
+				rx_rp <= S_AXI_WDATA[9:2];
 			end
 		end
 	end
 
 	assign i2c_cmd_pulse_o = i2c_cmd_pulse;
 
+	reg tx_wen;
+
+	assign tx_wdata_o = S_AXI_WDATA;
+	assign tx_waddr_o = axi_awaddr[9:2];
+	assign tx_wen_o = tx_wen;
+
+	assign rx_raddr_o = axi_araddr[9:2];
+
 	always @( posedge S_AXI_ACLK ) begin
 		if ( S_AXI_ARESETN == 1'b0 ) begin
-			i2c_cmd_pulse <= 0;
+			tx_wen <= 0;
 		end
 		else begin
-			i2c_cmd_pulse <= slv_reg_wren && axi_awaddr[12:0] == 13'h100c;
+			tx_wen <= slv_reg_wren && (12'h000 <= axi_awaddr[11:0] && axi_awaddr[11:0] <= 12'h3ff);
 		end
 	end
 
@@ -204,12 +227,11 @@ module i2c_axi_slave #
 		else begin
 			// Address decoding for reading registers
 			case ( axi_araddr[12:0] )
-				13'h1000: reg_data_out <= slv_reg_a;
-				13'h1004: reg_data_out <= slv_reg_b;
-				13'h1008: reg_data_out <= slv_reg_c;
-				13'h100c: reg_data_out <= slv_reg_i2c_ctrl;
-				13'h1010: reg_data_out <= i2c_status_reg_i;
-				default : reg_data_out <= 0;
+				13'h800: reg_data_out <= {tx_rp_i, 2'b00};
+				13'h804: reg_data_out <= {tx_wp, 2'b00};
+				13'h808: reg_data_out <= {rx_rp, 2'b00};
+				13'h80c: reg_data_out <= {rx_wp_i, 2'b00};
+				default : reg_data_out <= rx_rdata_i;
 			endcase
 		end
 	end
@@ -220,7 +242,7 @@ module i2c_axi_slave #
 			axi_rdata <= 0;
 		end
 		else begin
-			if (slv_reg_rden) begin
+			if (slv_reg_rden || 1) begin
 				axi_rdata <= reg_data_out;
 			end
 		end
