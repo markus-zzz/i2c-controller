@@ -410,7 +410,7 @@ module rx_ctrl(
 
 		case (rx_curr_state)
 			S_RX_IDLE: begin
-				if (rx_begin_i) begin
+				if (rx_byte_valid_i) begin
 					rx_next_state = S_RX_MSG_PAYLOAD;
 				end
 			end
@@ -419,7 +419,7 @@ module rx_ctrl(
 					rx_next_state = S_RX_MSG_OVERFLOW;
 				end
 				else if (rx_end_i) begin
-					rx_next_state = (rx_msg_byte_idx[1:0] == 2'b11) ? S_RX_MSG_HEADER : S_RX_MSG_FLUSH;
+					rx_next_state = S_RX_MSG_FLUSH;
 				end
 			end
 			S_RX_MSG_FLUSH: begin
@@ -439,11 +439,10 @@ module rx_ctrl(
 		if (rst) begin
 			rx_wp_tmp <= 0;
 		end
-		else if (rx_begin_i) begin
-			rx_wp_tmp <= rx_wp;
+		else if (rx_curr_state == S_RX_IDLE && rx_byte_valid_i) begin
+			rx_wp_tmp <= rx_wp + 1;
 		end
-		else if ((rx_curr_state == S_RX_MSG_PAYLOAD && rx_byte_valid_i && rx_msg_byte_idx[1:0] == 2'b11) ||
-		 		 (rx_curr_state == S_RX_MSG_FLUSH)) begin
+		else if (rx_curr_state == S_RX_MSG_PAYLOAD && rx_byte_valid_i && rx_msg_byte_idx[1:0] == 2'b00) begin
 			rx_wp_tmp <= rx_wp_tmp + 1;
 		end
 	end
@@ -453,7 +452,7 @@ module rx_ctrl(
 			rx_wp <= 0;
 		end
 		else if (rx_curr_state == S_RX_MSG_HEADER) begin
-			rx_wp <= rx_wp_tmp;
+			rx_wp <= rx_wp_tmp + 1;
 		end
 	end
 
@@ -483,7 +482,7 @@ module rx_ctrl(
 	end
 
 	always @(posedge clk) begin
-		if (rst || rx_begin_i) begin
+		if (rst || rx_curr_state == S_RX_MSG_HEADER) begin
 			rx_msg_byte_idx <= 0;
 		end
 		else if (rx_byte_valid_i) begin

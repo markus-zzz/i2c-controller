@@ -91,6 +91,8 @@ void get_msg()
 
 	uint32_t rx_rp = axi_master_read(rx_rp_addr);
 
+	printf("rx_rp: %x\n", rx_rp);
+
 	uint32_t msg_byte_len = axi_master_read(rx_base_addr + rx_rp);
 	uint32_t msg_word_len = (msg_byte_len >> 2) + (msg_byte_len & 0x3 ? 1 : 0);
 
@@ -99,7 +101,7 @@ void get_msg()
 	}
 
 	/* Advance RX_RP */
-	axi_master_write(rx_rp_addr, rx_rp + 1 + (msg_word_len) * 4);
+	axi_master_write(rx_rp_addr, rx_rp + (1 + msg_word_len) * 4);
 
 	char *msg = (char*)&buf[0];
 	msg[msg_byte_len] = '\0';
@@ -145,11 +147,9 @@ int main(void)
     printf("Connected.\n");
 
 	/* begin - test */
-	put_msg("Hello World1");
+	put_msg("Hello World123456");
 	put_msg("Dummy you.");
-#if 0
 	put_msg("FooBar");
-#endif
 
 	dump_rx();
 	dump_rx();
@@ -168,10 +168,8 @@ int main(void)
 #endif
 
 	get_msg();
-#if 0
 	get_msg();
 	get_msg();
-#endif
 
 	/* end - test */
 
